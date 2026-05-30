@@ -3,6 +3,9 @@ set -euo pipefail
 
 : "${LOGIN_PASSWORD:?LOGIN_PASSWORD repository secret is required}"
 : "${D1_DATABASE_ID:?D1_DATABASE_ID repository secret is required}"
+: "${SESSION_KV_NAMESPACE_ID:?SESSION_KV_NAMESPACE_ID repository secret is required}"
+: "${RATE_LIMIT_KV_NAMESPACE_ID:?RATE_LIMIT_KV_NAMESPACE_ID repository secret is required}"
+: "${CACHE_KV_NAMESPACE_ID:?CACHE_KV_NAMESPACE_ID repository secret is required}"
 : "${HUB_KV_NAMESPACE_ID:?HUB_KV_NAMESPACE_ID repository secret is required}"
 
 WRANGLER_CONFIG_FILE="${WRANGLER_CONFIG_FILE:-.wrangler-ci.toml}"
@@ -15,11 +18,18 @@ ARCHIVE_BUCKET_NAME="${ARCHIVE_BUCKET_NAME:-dg-lab-archive}"
 SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}"
 SOCKET_PULSE_INTERVAL_MS="${SOCKET_PULSE_INTERVAL_MS:-1000}"
 HEARTBEAT_INTERVAL="${HEARTBEAT_INTERVAL:-60000}"
+SESSION_KV_PREVIEW_NAMESPACE_ID="${SESSION_KV_PREVIEW_NAMESPACE_ID:-$SESSION_KV_NAMESPACE_ID}"
+RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID="${RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID:-$RATE_LIMIT_KV_NAMESPACE_ID}"
+CACHE_KV_PREVIEW_NAMESPACE_ID="${CACHE_KV_PREVIEW_NAMESPACE_ID:-$CACHE_KV_NAMESPACE_ID}"
+ASSETS_BUCKET_NAME="${ASSETS_BUCKET_NAME:-dg-lab-assets}"
+ARCHIVE_BUCKET_NAME="${ARCHIVE_BUCKET_NAME:-dg-lab-archive}"
+SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}"
 
 if [[ ! "$WORKER_NAME" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then echo "WORKER_NAME must contain only lowercase letters, digits, and hyphens" >&2; exit 1; fi
 if [[ ! "$D1_DATABASE_NAME" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then echo "D1_DATABASE_NAME must contain only lowercase letters, digits, and hyphens" >&2; exit 1; fi
 if [[ ! "$D1_DATABASE_ID" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]]; then echo "D1_DATABASE_ID must be a UUID" >&2; exit 1; fi
 for name in HUB_KV_NAMESPACE_ID HUB_KV_PREVIEW_NAMESPACE_ID; do
+for name in SESSION_KV_NAMESPACE_ID SESSION_KV_PREVIEW_NAMESPACE_ID RATE_LIMIT_KV_NAMESPACE_ID RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID CACHE_KV_NAMESPACE_ID CACHE_KV_PREVIEW_NAMESPACE_ID; do
   if [[ ! "${!name}" =~ ^[[:xdigit:]]{32}$ ]]; then echo "$name must be a 32-character hexadecimal KV namespace ID" >&2; exit 1; fi
 done
 for name in ASSETS_BUCKET_NAME ARCHIVE_BUCKET_NAME; do
@@ -33,6 +43,7 @@ escape_json_string() { node -e 'process.stdout.write(JSON.stringify(process.argv
 
 mkdir -p "$(dirname "$WRANGLER_CONFIG_FILE")" "$(dirname "$WRANGLER_SECRETS_FILE")"
 cat > "$WRANGLER_CONFIG_FILE" <<EOF_CONFIG
+cat > .wrangler-ci.toml <<EOF_CONFIG
 name = "$WORKER_NAME"
 main = "src/worker.ts"
 compatibility_date = "2026-05-30"
@@ -52,9 +63,67 @@ database_id = "$D1_DATABASE_ID"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
-binding = "HUB_KV"
-id = "$HUB_KV_NAMESPACE_ID"
-preview_id = "$HUB_KV_PREVIEW_NAMESPACE_ID"
+binding = "SESSION_KV"
+id = "$SESSION_KV_NAMESPACE_ID"
+preview_id = "$SESSION_KV_PREVIEW_NAMESPACE_ID"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "$RATE_LIMIT_KV_NAMESPACE_ID"
+preview_id = "$RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "$CACHE_KV_NAMESPACE_ID"
+preview_id = "$CACHE_KV_PREVIEW_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
 
 [[r2_buckets]]
 binding = "ASSETS_BUCKET"
@@ -83,3 +152,5 @@ EOF_CONFIG
 
 printf '{"LOGIN_PASSWORD":%s}\n' "$(escape_json_string "$LOGIN_PASSWORD")" > "$WRANGLER_SECRETS_FILE"
 chmod 600 "$WRANGLER_CONFIG_FILE" "$WRANGLER_SECRETS_FILE"
+printf '{"LOGIN_PASSWORD":%s}\n' "$(escape_json_string "$LOGIN_PASSWORD")" > .wrangler-ci-secrets.json
+chmod 600 .wrangler-ci.toml .wrangler-ci-secrets.json
