@@ -1,13 +1,23 @@
 import { Store } from "./core/store";
 import { clearCommand, ProtocolError, strengthCommand, waveformCommand } from "./core/protocol";
 import { DeviceDurableObject } from "./durable/device-do";
+import { SocketV2DurableObject } from "./durable/socket-v2-do";
 import type { Device, Env, Session } from "./types";
 import { consoleHtml } from "./ui/console";
 
-export { DeviceDurableObject };
+export { DeviceDurableObject, SocketV2DurableObject };
 class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const reply = (value: unknown, status = 200) => Response.json(value, { status });
 const text = (value: string, contentType: string) => new Response(value, { headers: { "content-type": contentType } });
+async function matchesPassword(input: unknown, expected: string | undefined): Promise<boolean> {
+  if (typeof input !== "string" || !input || !expected) return false;
+  const encode = (value: string) => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  const [actualHash, expectedHash] = await Promise.all([encode(input), encode(expected)]);
+  const actual = new Uint8Array(actualHash), wanted = new Uint8Array(expectedHash);
+  let mismatch = actual.length ^ wanted.length;
+  for (let index = 0; index < actual.length; index++) mismatch |= actual[index] ^ wanted[index];
+  return mismatch === 0;
+}
 async function body<T>(request: Request): Promise<T> { try { return await request.json() as T; } catch { throw new HttpError(400, "request body must be valid JSON"); } }
 function doStub(env: Env, deviceId: string) { return env.DEVICE_DO.get(env.DEVICE_DO.idFromName(deviceId)); }
 async function doJson(stub: DurableObjectStub, path: string, method = "GET", payload?: unknown) {
@@ -39,6 +49,7 @@ async function control(store: Store, env: Env, session: Session, deviceId: strin
   try {
     const result = await doJson(doStub(env, deviceId), "/command", "POST", { command });
     await store.audit(session.userId, deviceId, action, { command, result });
+    await store.cacheState(deviceId, result);
     return result;
   } catch (error) {
     await store.audit(session.userId, deviceId, `${action}_rejected`, { command, error: error instanceof Error ? error.message : "unknown error" });
@@ -68,7 +79,9 @@ async function handleMcp(tool: string, args: Record<string, unknown>, store: Sto
   if (tool === "bind_device" || tool === "unbind_device") {
     const path = tool === "bind_device" ? "/bind" : "/unbind";
     const result = await doJson(doStub(env, deviceId), path, "POST", args);
+    if (tool === "bind_device") await store.saveBinding(deviceId, String(args.clientId), String(args.targetId)); else await store.clearBinding(deviceId);
     await store.audit(session.userId, deviceId, tool, args);
+    await store.cacheState(deviceId, result);
     return result;
   }
   throw new HttpError(404, "unknown MCP tool");
@@ -77,11 +90,23 @@ async function handleMcp(tool: string, args: Record<string, unknown>, store: Sto
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url), path = url.pathname, store = new Store(env);
   if (request.method === "GET" && path === "/") return text(consoleHtml, "text/html; charset=utf-8");
-  if (request.method === "GET" && path === "/api/health") return reply({ ok: true, service: "dg-lab-worker-hub" });
+  if (request.method === "GET" && path === "/api/health") { await store.bootstrap(); return reply({ ok: true, service: "dg-lab-worker-hub", storage: "d1+kv+r2+do" }); }
+  const socketApp = /^\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(path);
+  if (request.method === "GET" && request.headers.get("upgrade")?.toLowerCase() === "websocket" && (path === "/socket" || socketApp)) {
+    const stub = env.SOCKET_V2_DO.get(env.SOCKET_V2_DO.idFromName("socket-v2-hub"));
+    const internal = new URL("https://socket.internal/connect");
+    if (socketApp) internal.searchParams.set("clientId", socketApp[1]);
+    return stub.fetch(new Request(internal, request));
+  }
   if (request.method === "POST" && path === "/api/auth/login") {
-    const input = await body<{ token?: unknown }>(request);
-    if (!env.BOOTSTRAP_TOKEN || input.token !== env.BOOTSTRAP_TOKEN) throw new HttpError(401, "invalid token");
-    return reply({ session: await store.createSession() }, 201);
+    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+    if (!await store.rateLimit(`ip:${ip}:login`, 10, 60)) throw new HttpError(429, "login rate limit exceeded");
+    const input = await body<{ password?: unknown }>(request);
+    if (!await matchesPassword(input.password, env.LOGIN_PASSWORD)) throw new HttpError(401, "invalid password");
+    const session = await store.createSession();
+    const { device, created } = await store.defaultDevice(session.userId);
+    if (created) await store.audit(session.userId, device.id, "create_default_device", { name: device.name });
+    return reply({ session, device }, 201);
   }
   const connect = /^\/api\/devices\/([^/]+)\/connect$/.exec(path);
   if (request.method === "GET" && connect && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
@@ -104,13 +129,15 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (match) {
     const [, deviceId, action] = match;
     await ownedDevice(store, session, deviceId);
-    if (request.method === "GET" && action === "status") return reply(await doJson(doStub(env, deviceId), "/status"));
+    if (request.method === "GET" && action === "status") { const state = await doJson(doStub(env, deviceId), "/status"); await store.cacheState(deviceId, state); return reply(state); }
     if (request.method === "GET" && action === "logs") return reply({ logs: await store.logs(deviceId) });
     if (request.method === "POST") {
       const args = action === "unbind" ? {} : await body<Record<string, unknown>>(request);
       if (action === "bind" || action === "unbind") {
         const result = await doJson(doStub(env, deviceId), `/${action}`, "POST", args);
+        if (action === "bind") await store.saveBinding(deviceId, String(args.clientId), String(args.targetId)); else await store.clearBinding(deviceId);
         await store.audit(session.userId, deviceId, action, args);
+        await store.cacheState(deviceId, result);
         return reply(result);
       }
       if (action === "strength") return reply(await control(store, env, session, deviceId, action, strengthCommand(args.channel, args.mode, args.value)));
