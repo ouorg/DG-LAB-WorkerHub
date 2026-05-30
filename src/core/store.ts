@@ -20,11 +20,13 @@ export class Store {
     const createdAt = now(), id = crypto.randomUUID();
     const session: Session = { id, userId: "bootstrap", expiresAt: new Date(Date.now() + ttl * 1000).toISOString() };
     await this.env.DB.prepare("INSERT INTO sessions (id, user_id, kind, state, token_hash, created_at, updated_at, expires_at) VALUES (?, ?, 'login', 'active', ?, ?, ?, ?)").bind(id, session.userId, await tokenHash(id), createdAt, createdAt, session.expiresAt).run();
+    await writeJson(this.env.HUB_KV, `session:${id}`, session, ttl);
     await writeJson(this.env.SESSION_KV, `session:${id}`, session, ttl);
     return session;
   }
 
   async session(id: string): Promise<Session | null> {
+    const session = await readJson<Session>(this.env.HUB_KV, `session:${id}`);
     const session = await readJson<Session>(this.env.SESSION_KV, `session:${id}`);
     return session && Date.parse(session.expiresAt) > Date.now() ? session : null;
   }
@@ -71,11 +73,17 @@ export class Store {
   async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {
     const timestamp = now();
     await this.env.DB.prepare("INSERT INTO device_bindings (id, device_id, client_id, target_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?) ON CONFLICT(device_id) DO UPDATE SET client_id = excluded.client_id, target_id = excluded.target_id, state = 'active', updated_at = excluded.updated_at").bind(crypto.randomUUID(), deviceId, clientId, targetId, timestamp, timestamp).run();
+    await writeJson(this.env.HUB_KV, `device:binding:${deviceId}`, { clientId, targetId, state: "active", updatedAt: timestamp }, 300);
     await writeJson(this.env.CACHE_KV, `device:binding:${deviceId}`, { clientId, targetId, state: "active", updatedAt: timestamp }, 300);
   }
 
   async clearBinding(deviceId: string): Promise<void> {
     await this.env.DB.prepare("UPDATE device_bindings SET state = 'closed', updated_at = ? WHERE device_id = ?").bind(now(), deviceId).run();
+    await this.env.HUB_KV.delete(`device:binding:${deviceId}`);
+  }
+
+  async cacheState(deviceId: string, state: unknown): Promise<void> { await writeJson(this.env.HUB_KV, `device:state:${deviceId}`, state, 120); }
+  rateLimit(key: string, limit: number, ttl: number): Promise<boolean> { return incrementWindow(this.env.HUB_KV, `rl:${key}`, limit, ttl); }
     await this.env.CACHE_KV.delete(`device:binding:${deviceId}`);
   }
 

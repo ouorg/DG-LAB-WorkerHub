@@ -1,5 +1,6 @@
 export interface Env {
   DB: D1Database;
+  HUB_KV: KVNamespace;
   SESSION_KV: KVNamespace;
   RATE_LIMIT_KV: KVNamespace;
   CACHE_KV: KVNamespace;

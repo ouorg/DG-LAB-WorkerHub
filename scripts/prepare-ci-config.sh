@@ -10,6 +10,7 @@ set -euo pipefail
 
 WORKER_NAME="${WORKER_NAME:-dg-lab-worker-hub}"
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-dg-lab-worker-hub}"
+HUB_KV_PREVIEW_NAMESPACE_ID="${HUB_KV_PREVIEW_NAMESPACE_ID:-$HUB_KV_NAMESPACE_ID}"
 SESSION_KV_PREVIEW_NAMESPACE_ID="${SESSION_KV_PREVIEW_NAMESPACE_ID:-$SESSION_KV_NAMESPACE_ID}"
 RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID="${RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID:-$RATE_LIMIT_KV_NAMESPACE_ID}"
 CACHE_KV_PREVIEW_NAMESPACE_ID="${CACHE_KV_PREVIEW_NAMESPACE_ID:-$CACHE_KV_NAMESPACE_ID}"
@@ -20,6 +21,7 @@ SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}"
 if [[ ! "$WORKER_NAME" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then echo "WORKER_NAME must contain only lowercase letters, digits, and hyphens" >&2; exit 1; fi
 if [[ ! "$D1_DATABASE_NAME" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then echo "D1_DATABASE_NAME must contain only lowercase letters, digits, and hyphens" >&2; exit 1; fi
 if [[ ! "$D1_DATABASE_ID" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]]; then echo "D1_DATABASE_ID must be a UUID" >&2; exit 1; fi
+for name in HUB_KV_NAMESPACE_ID HUB_KV_PREVIEW_NAMESPACE_ID; do
 for name in SESSION_KV_NAMESPACE_ID SESSION_KV_PREVIEW_NAMESPACE_ID RATE_LIMIT_KV_NAMESPACE_ID RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID CACHE_KV_NAMESPACE_ID CACHE_KV_PREVIEW_NAMESPACE_ID; do
   if [[ ! "${!name}" =~ ^[[:xdigit:]]{32}$ ]]; then echo "$name must be a 32-character hexadecimal KV namespace ID" >&2; exit 1; fi
 done
@@ -61,6 +63,14 @@ preview_id = "$RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID"
 binding = "CACHE_KV"
 id = "$CACHE_KV_NAMESPACE_ID"
 preview_id = "$CACHE_KV_PREVIEW_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
 
 [[r2_buckets]]
 binding = "ASSETS_BUCKET"
