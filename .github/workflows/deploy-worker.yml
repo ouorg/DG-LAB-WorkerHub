@@ -30,6 +30,8 @@ jobs:
           CACHE_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.CACHE_KV_PREVIEW_NAMESPACE_ID }}
           ASSETS_BUCKET_NAME: ${{ secrets.ASSETS_BUCKET_NAME }}
           ARCHIVE_BUCKET_NAME: ${{ secrets.ARCHIVE_BUCKET_NAME }}
+          HUB_KV_NAMESPACE_ID: ${{ secrets.HUB_KV_NAMESPACE_ID }}
+          HUB_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.HUB_KV_PREVIEW_NAMESPACE_ID }}
           SESSION_TTL_SECONDS: ${{ secrets.SESSION_TTL_SECONDS }}
           WORKER_NAME: ${{ secrets.WORKER_NAME }}
         run: ./scripts/prepare-ci-config.sh

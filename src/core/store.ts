@@ -53,6 +53,11 @@ export class Store {
     return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
   }
 
+  async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
+    const [device] = await this.devices(ownerId);
+    return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
+  }
+
   async audit(userId: string, deviceId: string, action: string, detail: unknown): Promise<void> {
     const createdAt = now();
     await this.env.DB.prepare("INSERT INTO audit_logs (id, user_id, device_id, source, action, request_json, created_at) VALUES (?, ?, ?, 'worker', ?, ?, ?)").bind(crypto.randomUUID(), userId, deviceId, action, JSON.stringify(detail), createdAt).run();
@@ -61,6 +66,19 @@ export class Store {
   async logs(deviceId: string): Promise<AuditLog[]> {
     const rows = await this.env.DB.prepare("SELECT id, device_id, user_id, action, request_json, created_at FROM audit_logs WHERE device_id = ? ORDER BY created_at DESC LIMIT 100").bind(deviceId).all<AuditRow>();
     return (rows.results ?? []).map(auditFromRow);
+  }
+
+  async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {
+    const timestamp = now();
+    await this.env.DB.prepare("INSERT INTO device_bindings (id, device_id, client_id, target_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?) ON CONFLICT(device_id) DO UPDATE SET client_id = excluded.client_id, target_id = excluded.target_id, state = 'active', updated_at = excluded.updated_at").bind(crypto.randomUUID(), deviceId, clientId, targetId, timestamp, timestamp).run();
+    await writeJson(this.env.CACHE_KV, `device:binding:${deviceId}`, { clientId, targetId, state: "active", updatedAt: timestamp }, 300);
+  }
+
+  async clearBinding(deviceId: string): Promise<void> {
+    await this.env.DB.prepare("UPDATE device_bindings SET state = 'closed', updated_at = ? WHERE device_id = ?").bind(now(), deviceId).run();
+    await this.env.CACHE_KV.delete(`device:binding:${deviceId}`);
+  }
+
   }
 
   async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {

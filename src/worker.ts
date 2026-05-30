@@ -91,6 +91,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url), path = url.pathname, store = new Store(env);
   if (request.method === "GET" && path === "/") return text(consoleHtml, "text/html; charset=utf-8");
   if (request.method === "GET" && path === "/api/health") { await store.bootstrap(); return reply({ ok: true, service: "dg-lab-worker-hub", storage: "d1+kv+r2+do" }); }
+  if (request.method === "GET" && path === "/api/health") return reply({ ok: true, service: "dg-lab-worker-hub" });
   const socketApp = /^\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(path);
   if (request.method === "GET" && request.headers.get("upgrade")?.toLowerCase() === "websocket" && (path === "/socket" || socketApp)) {
     const stub = env.SOCKET_V2_DO.get(env.SOCKET_V2_DO.idFromName("socket-v2-hub"));

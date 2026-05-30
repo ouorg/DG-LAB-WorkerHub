@@ -8,6 +8,7 @@ export interface Env {
   DEVICE_DO: DurableObjectNamespace;
   SOCKET_V2_DO: DurableObjectNamespace;
   LOGIN_PASSWORD: string;
+  BOOTSTRAP_TOKEN: string;
   SESSION_TTL_SECONDS?: string;
   SOCKET_PULSE_INTERVAL_MS?: string;
   HEARTBEAT_INTERVAL?: string;
