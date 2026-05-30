@@ -50,6 +50,15 @@ export class Store {
     await this.env.DB.prepare(sql.insertSession)
       .bind(id, session.userId, await tokenHash(id), createdAt, createdAt, session.expiresAt).run();
     await writeJson(this.env.HUB_KV, kvKeys.session(id), session, ttl);
+
+  async createSession(): Promise<Session> {
+    await this.bootstrap();
+    const ttl = sessionTtlSeconds(this.env.SESSION_TTL_SECONDS);
+    const createdAt = now(), id = crypto.randomUUID();
+    const session: Session = { id, userId: "bootstrap", expiresAt: new Date(Date.now() + ttl * 1000).toISOString() };
+    await this.env.DB.prepare(sql.insertSession)
+      .bind(id, session.userId, await tokenHash(id), createdAt, createdAt, session.expiresAt).run();
+    await writeJson(this.env.HUB_KV, kvKeys.session(id), session, ttl);
   async bootstrap(): Promise<void> { if (!this.bootstrapped) { await bootstrapDb(this.env); this.bootstrapped = true; } }
 
   async createSession(): Promise<Session> {

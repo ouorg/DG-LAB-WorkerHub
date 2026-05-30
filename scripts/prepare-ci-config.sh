@@ -11,6 +11,11 @@ set -euo pipefail
 WORKER_NAME="${WORKER_NAME:-dg-lab-worker-hub}"
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-dg-lab-worker-hub}"
 HUB_KV_PREVIEW_NAMESPACE_ID="${HUB_KV_PREVIEW_NAMESPACE_ID:-$HUB_KV_NAMESPACE_ID}"
+ASSETS_BUCKET_NAME="${ASSETS_BUCKET_NAME:-dg-lab-assets}"
+ARCHIVE_BUCKET_NAME="${ARCHIVE_BUCKET_NAME:-dg-lab-archive}"
+SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}"
+SOCKET_PULSE_INTERVAL_MS="${SOCKET_PULSE_INTERVAL_MS:-1000}"
+HEARTBEAT_INTERVAL="${HEARTBEAT_INTERVAL:-60000}"
 SESSION_KV_PREVIEW_NAMESPACE_ID="${SESSION_KV_PREVIEW_NAMESPACE_ID:-$SESSION_KV_NAMESPACE_ID}"
 RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID="${RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID:-$RATE_LIMIT_KV_NAMESPACE_ID}"
 CACHE_KV_PREVIEW_NAMESPACE_ID="${CACHE_KV_PREVIEW_NAMESPACE_ID:-$CACHE_KV_NAMESPACE_ID}"
@@ -29,6 +34,8 @@ for name in ASSETS_BUCKET_NAME ARCHIVE_BUCKET_NAME; do
   if [[ ! "${!name}" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]]; then echo "$name must be a valid lowercase R2 bucket name" >&2; exit 1; fi
 done
 if [[ ! "$SESSION_TTL_SECONDS" =~ ^[0-9]+$ ]] || (( SESSION_TTL_SECONDS < 300 )); then echo "SESSION_TTL_SECONDS must be an integer greater than or equal to 300" >&2; exit 1; fi
+if [[ ! "$SOCKET_PULSE_INTERVAL_MS" =~ ^[0-9]+$ ]] || (( SOCKET_PULSE_INTERVAL_MS < 100 )); then echo "SOCKET_PULSE_INTERVAL_MS must be an integer greater than or equal to 100" >&2; exit 1; fi
+if [[ ! "$HEARTBEAT_INTERVAL" =~ ^[0-9]+$ ]] || (( HEARTBEAT_INTERVAL < 1000 )); then echo "HEARTBEAT_INTERVAL must be an integer greater than or equal to 1000" >&2; exit 1; fi
 
 escape_json_string() { node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$1"; }
 
@@ -39,6 +46,8 @@ compatibility_date = "2026-05-30"
 
 [vars]
 SESSION_TTL_SECONDS = "$SESSION_TTL_SECONDS"
+SOCKET_PULSE_INTERVAL_MS = "$SOCKET_PULSE_INTERVAL_MS"
+HEARTBEAT_INTERVAL = "$HEARTBEAT_INTERVAL"
 
 [secrets]
 required = ["LOGIN_PASSWORD"]
@@ -63,6 +72,14 @@ preview_id = "$RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID"
 binding = "CACHE_KV"
 id = "$CACHE_KV_NAMESPACE_ID"
 preview_id = "$CACHE_KV_PREVIEW_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
 
 [[r2_buckets]]
 binding = "ASSETS_BUCKET"

@@ -4,6 +4,104 @@
 
 ## 推荐部署方式：GitHub Actions
 
+仓库已内置 `.github/workflows/deploy-worker.yml`。推荐优先使用 GitHub Actions 部署，不需要手动维护生产环境 `wrangler.toml`：工作流会根据 Repository Secrets 生成临时 Wrangler 配置，运行测试与部署前 dry-run，应用 D1 migrations，部署 Worker，并在结束时清理临时配置与密钥文件。同一时间只会执行一个生产部署，避免并发 migration 与发布互相干扰。
+
+### 1. Fork 或复制仓库
+
+将仓库放入自己的 GitHub 账号或组织，并确认默认分支为 `main`。
+
+### 2. 创建 Cloudflare 资源
+
+只需创建一个 D1 数据库、一个 KV namespace 和两个 R2 bucket：
+
+```sh
+npx wrangler login
+npx wrangler d1 create dg-lab-worker-hub
+npx wrangler kv namespace create HUB_KV
+npx wrangler r2 bucket create dg-lab-assets
+npx wrangler r2 bucket create dg-lab-archive
+```
+
+保存命令返回的 D1 数据库 UUID 和 KV namespace ID。R2 bucket 默认名称已经写入部署脚本；只有使用其他名称时才需要额外配置。
+
+### 3. 配置 GitHub Repository Secrets
+
+进入仓库的 **Settings → Secrets and variables → Actions → Repository secrets**，添加以下必填项：
+
+| Secret | 用途 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token，需要具备 Workers、D1、KV 和 R2 的部署访问权限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `LOGIN_PASSWORD` | 云端控制台登录密码；部署时作为 Worker secret 上传 |
+| `D1_DATABASE_ID` | `npx wrangler d1 create` 返回的数据库 UUID |
+| `HUB_KV_NAMESPACE_ID` | `npx wrangler kv namespace create` 返回的 namespace ID |
+
+以下配置可选；未设置时部署脚本会使用默认值：
+
+| Secret | 默认值 | 用途 |
+| --- | --- | --- |
+| `D1_DATABASE_NAME` | `dg-lab-worker-hub` | D1 数据库名称 |
+| `HUB_KV_PREVIEW_NAMESPACE_ID` | 回退到生产 ID | KV preview namespace ID |
+| `ASSETS_BUCKET_NAME` | `dg-lab-assets` | R2 波形与导出资源 bucket |
+| `ARCHIVE_BUCKET_NAME` | `dg-lab-archive` | R2 冷日志归档 bucket |
+| `SESSION_TTL_SECONDS` | `1800` | 登录会话 TTL，最小值为 300 秒 |
+| `SOCKET_PULSE_INTERVAL_MS` | `1000` | SOCKET v2 波形重复发送间隔，最小值为 100 毫秒 |
+| `HEARTBEAT_INTERVAL` | `60000` | SOCKET v2 心跳间隔，最小值为 1000 毫秒 |
+| `WORKER_NAME` | `dg-lab-worker-hub` | Worker 服务名称 |
+
+> `LOGIN_PASSWORD`、D1 ID 和 KV ID 不应提交到仓库。生产绑定只会写入 Actions 运行时生成且已被 Git 忽略的 `.wrangler-ci.toml` 与 `.wrangler-ci-secrets.json`。
+
+### 4. 触发自动部署
+
+可以使用以下任一方式：
+
+1. 推送提交到 `main` 分支。
+2. 打开 GitHub 仓库的 **Actions → Deploy Worker → Run workflow**，手动触发 `workflow_dispatch`。
+
+工作流会按顺序执行：
+
+1. 检出仓库。
+2. 使用 Repository Secrets 生成临时 Wrangler 配置。
+3. 使用 lockfile 安装依赖，并运行单元测试与 TypeScript 检查。
+4. 使用生成的临时配置执行 `wrangler deploy --dry-run`。
+5. 执行 `wrangler d1 migrations apply DB --remote`。
+6. 使用 `cloudflare/wrangler-action` 部署 Worker，并上传 `LOGIN_PASSWORD` secret。
+7. 无论部署成功或失败，都删除临时配置和密钥文件。
+
+### 5. 验证部署
+
+部署完成后打开 Worker 域名：
+
+```text
+https://<你的 Worker 域名>/
+```
+
+也可以访问健康检查：
+
+```text
+https://<你的 Worker 域名>/api/health
+```
+
+正常响应示例：
+
+```json
+{ "ok": true, "service": "dg-lab-worker-hub", "storage": "d1+kv+r2+do" }
+```
+
+首次访问健康检查或首次登录时，Worker 会幂等写入默认 settings 和管理员记录。首次使用 `LOGIN_PASSWORD` 登录时，如果还没有设备，控制台会自动创建并选择 `默认设备`。
+
+## 本地开发
+
+### 1. 安装依赖
+
+```sh
+npm install
+```
+
+### 2. 配置本地密码
+
+创建不会提交到仓库的 `.dev.vars`：
+
 仓库已内置 `.github/workflows/deploy-worker.yml`。推荐优先使用 GitHub Actions 部署，不需要手动维护生产环境 `wrangler.toml`：工作流会根据 Repository Secrets 生成临时 Wrangler 配置，应用 D1 migrations，部署 Worker，并在结束时清理临时配置与密钥文件。
 
 ### 1. Fork 或复制仓库
@@ -445,6 +543,14 @@ Hub 会拒绝超过 1950 字符的 JSON 消息；单次波形数组最多包含 
 Hub 会拒绝超过 1950 字符的 JSON 消息；单次波形数组最多包含 100 条 8 字节 HEX 数据。`clientMsg.time` 默认为 5 秒，允许范围为 1 到 60 秒。可选 Worker 变量 `SOCKET_PULSE_INTERVAL_MS` 用于调整波形重复发送间隔，`HEARTBEAT_INTERVAL` 用于调整心跳间隔。
 ```dotenv
 LOGIN_PASSWORD="replace-me"
+```
+
+### 3. 应用本地 D1 migration
+
+```sh
+npm run db:migrate:local
+```
+
 ```
 
 ### 3. 应用本地 D1 migration

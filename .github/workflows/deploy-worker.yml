@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-worker-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy to Cloudflare Workers
@@ -16,6 +20,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install locked dependencies
+        run: npm ci
 
       - name: Generate deployment configuration from repository secrets
         env:
@@ -35,8 +47,19 @@ jobs:
           ASSETS_BUCKET_NAME: ${{ secrets.ASSETS_BUCKET_NAME }}
           ARCHIVE_BUCKET_NAME: ${{ secrets.ARCHIVE_BUCKET_NAME }}
           SESSION_TTL_SECONDS: ${{ secrets.SESSION_TTL_SECONDS }}
+          SOCKET_PULSE_INTERVAL_MS: ${{ secrets.SOCKET_PULSE_INTERVAL_MS }}
+          HEARTBEAT_INTERVAL: ${{ secrets.HEARTBEAT_INTERVAL }}
           WORKER_NAME: ${{ secrets.WORKER_NAME }}
         run: ./scripts/prepare-ci-config.sh
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run TypeScript checks
+        run: npm run typecheck
+
+      - name: Validate generated deployment configuration
+        run: npm exec wrangler deploy -- --dry-run --config .wrangler-ci.toml --secrets-file .wrangler-ci-secrets.json
 
       - name: Apply D1 migrations
         uses: cloudflare/wrangler-action@v3
