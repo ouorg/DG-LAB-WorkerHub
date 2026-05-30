@@ -2,18 +2,43 @@ name = "dg-lab-worker-hub"
 main = "src/worker.ts"
 compatibility_date = "2026-05-30"
 
+[vars]
+SESSION_TTL_SECONDS = "1800"
+
 [secrets]
-required = ["BOOTSTRAP_TOKEN"]
+required = ["LOGIN_PASSWORD"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dg-lab-worker-hub"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "HUB_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "dg-lab-assets"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "dg-lab-archive"
 
 [[durable_objects.bindings]]
 name = "DEVICE_DO"
 class_name = "DeviceDurableObject"
 
+[[durable_objects.bindings]]
+name = "SOCKET_V2_DO"
+class_name = "SocketV2DurableObject"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DeviceDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SocketV2DurableObject"]
