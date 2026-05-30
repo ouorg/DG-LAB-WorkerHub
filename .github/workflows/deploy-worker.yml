@@ -1,0 +1,39 @@
+name: Deploy Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Generate deployment configuration from repository secrets
+        env:
+          BOOTSTRAP_TOKEN: ${{ secrets.BOOTSTRAP_TOKEN }}
+          HUB_KV_NAMESPACE_ID: ${{ secrets.HUB_KV_NAMESPACE_ID }}
+          HUB_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.HUB_KV_PREVIEW_NAMESPACE_ID }}
+          SESSION_TTL_SECONDS: ${{ secrets.SESSION_TTL_SECONDS }}
+          WORKER_NAME: ${{ secrets.WORKER_NAME }}
+        run: ./scripts/prepare-ci-config.sh
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.68.0"
+          command: deploy --config .wrangler-ci.toml --secrets-file .wrangler-ci-secrets.json
+
+      - name: Remove temporary secret files
+        if: always()
+        run: rm -f .wrangler-ci.toml .wrangler-ci-secrets.json
