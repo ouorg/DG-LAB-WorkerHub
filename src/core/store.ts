@@ -79,6 +79,19 @@ export class Store {
     await this.env.CACHE_KV.delete(`device:binding:${deviceId}`);
   }
 
+  }
+
+  async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {
+    const timestamp = now();
+    await this.env.DB.prepare("INSERT INTO device_bindings (id, device_id, client_id, target_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?) ON CONFLICT(device_id) DO UPDATE SET client_id = excluded.client_id, target_id = excluded.target_id, state = 'active', updated_at = excluded.updated_at").bind(crypto.randomUUID(), deviceId, clientId, targetId, timestamp, timestamp).run();
+    await writeJson(this.env.CACHE_KV, `device:binding:${deviceId}`, { clientId, targetId, state: "active", updatedAt: timestamp }, 300);
+  }
+
+  async clearBinding(deviceId: string): Promise<void> {
+    await this.env.DB.prepare("UPDATE device_bindings SET state = 'closed', updated_at = ? WHERE device_id = ?").bind(now(), deviceId).run();
+    await this.env.CACHE_KV.delete(`device:binding:${deviceId}`);
+  }
+
   async cacheState(deviceId: string, state: unknown): Promise<void> { await writeJson(this.env.CACHE_KV, `device:state:${deviceId}`, state, 120); }
   rateLimit(key: string, limit: number, ttl: number): Promise<boolean> { return incrementWindow(this.env.RATE_LIMIT_KV, `rl:${key}`, limit, ttl); }
 }

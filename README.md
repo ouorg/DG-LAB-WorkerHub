@@ -114,6 +114,17 @@ npx wrangler r2 bucket create dg-lab-archive
 ```
 
 将返回的资源 ID 配置为 Repository Secrets，再触发 GitHub Actions 部署。
+
+```sh
+npx wrangler d1 create dg-lab-worker-hub
+npx wrangler kv namespace create SESSION_KV
+npx wrangler kv namespace create RATE_LIMIT_KV
+npx wrangler kv namespace create CACHE_KV
+npx wrangler r2 bucket create dg-lab-assets
+npx wrangler r2 bucket create dg-lab-archive
+```
+
+将返回的资源 ID 配置为 Repository Secrets，再触发 GitHub Actions 部署。
 - `POST /api/auth/login`，请求体为 `{ "password": "..." }`。登录成功后会返回会话和可直接使用的默认设备；首次登录时自动创建设备。
 - `GET|POST /api/devices`
 - `GET /api/devices/:id/status`
@@ -126,6 +137,20 @@ npx wrangler r2 bucket create dg-lab-archive
 ## GitHub Actions 自动部署
 
 仓库中的 `.github/workflows/deploy-worker.yml` 会生成临时 Wrangler 配置、应用 D1 migrations、部署 Worker，并在结束后删除临时配置和 secrets 文件。
+
+### 必填 Repository Secrets
+
+| Secret | 用途 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare 部署与资源访问凭据 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `LOGIN_PASSWORD` | 控制台登录密码，作为 Worker secret 上传 |
+| `D1_DATABASE_ID` | D1 数据库 UUID |
+| `SESSION_KV_NAMESPACE_ID` | 会话 KV namespace ID |
+| `RATE_LIMIT_KV_NAMESPACE_ID` | 限流 KV namespace ID |
+| `CACHE_KV_NAMESPACE_ID` | 缓存 KV namespace ID |
+
+### 可选 Repository Secrets
 
 ### 必填 Repository Secrets
 
