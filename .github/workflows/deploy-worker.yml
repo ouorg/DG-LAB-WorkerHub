@@ -20,11 +20,29 @@ jobs:
       - name: Generate deployment configuration from repository secrets
         env:
           LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          D1_DATABASE_NAME: ${{ secrets.D1_DATABASE_NAME }}
+          SESSION_KV_NAMESPACE_ID: ${{ secrets.SESSION_KV_NAMESPACE_ID }}
+          SESSION_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.SESSION_KV_PREVIEW_NAMESPACE_ID }}
+          RATE_LIMIT_KV_NAMESPACE_ID: ${{ secrets.RATE_LIMIT_KV_NAMESPACE_ID }}
+          RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.RATE_LIMIT_KV_PREVIEW_NAMESPACE_ID }}
+          CACHE_KV_NAMESPACE_ID: ${{ secrets.CACHE_KV_NAMESPACE_ID }}
+          CACHE_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.CACHE_KV_PREVIEW_NAMESPACE_ID }}
+          ASSETS_BUCKET_NAME: ${{ secrets.ASSETS_BUCKET_NAME }}
+          ARCHIVE_BUCKET_NAME: ${{ secrets.ARCHIVE_BUCKET_NAME }}
           HUB_KV_NAMESPACE_ID: ${{ secrets.HUB_KV_NAMESPACE_ID }}
           HUB_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.HUB_KV_PREVIEW_NAMESPACE_ID }}
           SESSION_TTL_SECONDS: ${{ secrets.SESSION_TTL_SECONDS }}
           WORKER_NAME: ${{ secrets.WORKER_NAME }}
         run: ./scripts/prepare-ci-config.sh
+
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.95.0"
+          command: d1 migrations apply DB --remote --config .wrangler-ci.toml
 
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3

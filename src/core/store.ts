@@ -1,39 +1,56 @@
-import type { AuditLog, Device, Env, Session, User } from "../types";
+import type { AuditLog, Device, Env, Session } from "../types";
+import { bootstrapDb } from "../storage/bootstrap";
+import { incrementWindow, readJson, writeJson } from "../storage/kv";
 
-const json = <T>(value: T) => JSON.stringify(value);
 const now = () => new Date().toISOString();
+const tokenHash = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), byte => byte.toString(16).padStart(2, "0")).join("");
+interface DeviceRow { id: string; owner_user_id: string; name: string; app_token: string; created_at: string }
+interface AuditRow { id: string; device_id: string; user_id: string; action: string; request_json: string | null; created_at: string }
+const deviceFromRow = (row: DeviceRow): Device => ({ id: row.id, ownerId: row.owner_user_id, name: row.name, appToken: row.app_token, createdAt: row.created_at });
+const auditFromRow = (row: AuditRow): AuditLog => ({ id: row.id, deviceId: row.device_id, userId: row.user_id, action: row.action, detail: row.request_json ? JSON.parse(row.request_json) : null, createdAt: row.created_at });
 
 export class Store {
+  private bootstrapped = false;
   constructor(private readonly env: Env) {}
-  async get<T>(key: string): Promise<T | null> { return this.env.HUB_KV.get<T>(key, "json"); }
-  async put<T>(key: string, value: T, options?: KVNamespacePutOptions): Promise<void> { await this.env.HUB_KV.put(key, json(value), options); }
+  async bootstrap(): Promise<void> { if (!this.bootstrapped) { await bootstrapDb(this.env); this.bootstrapped = true; } }
 
   async createSession(): Promise<Session> {
-    const user: User = { id: "bootstrap", name: "Administrator", createdAt: now() };
-    await this.put(`user:${user.id}`, user);
-    const ttl = Math.max(300, Number(this.env.SESSION_TTL_SECONDS ?? 86400));
-    const session: Session = { id: crypto.randomUUID(), userId: user.id, expiresAt: new Date(Date.now() + ttl * 1000).toISOString() };
-    await this.put(`session:${session.id}`, session, { expirationTtl: ttl });
+    await this.bootstrap();
+    const ttl = Math.max(300, Number(this.env.SESSION_TTL_SECONDS ?? 1800));
+    const createdAt = now(), id = crypto.randomUUID();
+    const session: Session = { id, userId: "bootstrap", expiresAt: new Date(Date.now() + ttl * 1000).toISOString() };
+    await this.env.DB.prepare("INSERT INTO sessions (id, user_id, kind, state, token_hash, created_at, updated_at, expires_at) VALUES (?, ?, 'login', 'active', ?, ?, ?, ?)").bind(id, session.userId, await tokenHash(id), createdAt, createdAt, session.expiresAt).run();
+    await writeJson(this.env.SESSION_KV, `session:${id}`, session, ttl);
     return session;
   }
 
   async session(id: string): Promise<Session | null> {
-    const session = await this.get<Session>(`session:${id}`);
+    const session = await readJson<Session>(this.env.SESSION_KV, `session:${id}`);
     return session && Date.parse(session.expiresAt) > Date.now() ? session : null;
   }
 
   async createDevice(ownerId: string, name: string): Promise<Device> {
-    const device: Device = { id: crypto.randomUUID(), ownerId, name, appToken: crypto.randomUUID(), createdAt: now() };
-    await this.put(`device:${device.id}`, device);
-    await this.put(`owner:${ownerId}:device:${device.id}`, device.id);
+    await this.bootstrap();
+    const createdAt = now(), device: Device = { id: crypto.randomUUID(), ownerId, name, appToken: crypto.randomUUID(), createdAt };
+    await this.env.DB.prepare("INSERT INTO devices (id, owner_user_id, name, app_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").bind(device.id, ownerId, name, device.appToken, createdAt, createdAt).run();
     return device;
   }
 
-  device(id: string) { return this.get<Device>(`device:${id}`); }
+  async device(id: string): Promise<Device | null> {
+    await this.bootstrap();
+    const row = await this.env.DB.prepare("SELECT id, owner_user_id, name, app_token, created_at FROM devices WHERE id = ?").bind(id).first<DeviceRow>();
+    return row ? deviceFromRow(row) : null;
+  }
 
   async devices(ownerId: string): Promise<Device[]> {
-    const keys = await this.env.HUB_KV.list({ prefix: `owner:${ownerId}:device:` });
-    return (await Promise.all(keys.keys.map(({ name }) => this.device(name.slice(name.lastIndexOf(":") + 1))))).filter(Boolean) as Device[];
+    await this.bootstrap();
+    const rows = await this.env.DB.prepare("SELECT id, owner_user_id, name, app_token, created_at FROM devices WHERE owner_user_id = ? ORDER BY created_at").bind(ownerId).all<DeviceRow>();
+    return (rows.results ?? []).map(deviceFromRow);
+  }
+
+  async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
+    const [device] = await this.devices(ownerId);
+    return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
   }
 
   async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
@@ -42,13 +59,26 @@ export class Store {
   }
 
   async audit(userId: string, deviceId: string, action: string, detail: unknown): Promise<void> {
-    const log: AuditLog = { id: crypto.randomUUID(), userId, deviceId, action, detail, createdAt: now() };
-    await this.put(`audit:${deviceId}:${log.createdAt}:${log.id}`, log, { expirationTtl: 60 * 60 * 24 * 30 });
+    const createdAt = now();
+    await this.env.DB.prepare("INSERT INTO audit_logs (id, user_id, device_id, source, action, request_json, created_at) VALUES (?, ?, ?, 'worker', ?, ?, ?)").bind(crypto.randomUUID(), userId, deviceId, action, JSON.stringify(detail), createdAt).run();
   }
 
   async logs(deviceId: string): Promise<AuditLog[]> {
-    const keys = await this.env.HUB_KV.list({ prefix: `audit:${deviceId}:`, limit: 100 });
-    const logs = await Promise.all(keys.keys.map(({ name }) => this.get<AuditLog>(name)));
-    return logs.filter(Boolean).reverse() as AuditLog[];
+    const rows = await this.env.DB.prepare("SELECT id, device_id, user_id, action, request_json, created_at FROM audit_logs WHERE device_id = ? ORDER BY created_at DESC LIMIT 100").bind(deviceId).all<AuditRow>();
+    return (rows.results ?? []).map(auditFromRow);
   }
+
+  async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {
+    const timestamp = now();
+    await this.env.DB.prepare("INSERT INTO device_bindings (id, device_id, client_id, target_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?) ON CONFLICT(device_id) DO UPDATE SET client_id = excluded.client_id, target_id = excluded.target_id, state = 'active', updated_at = excluded.updated_at").bind(crypto.randomUUID(), deviceId, clientId, targetId, timestamp, timestamp).run();
+    await writeJson(this.env.CACHE_KV, `device:binding:${deviceId}`, { clientId, targetId, state: "active", updatedAt: timestamp }, 300);
+  }
+
+  async clearBinding(deviceId: string): Promise<void> {
+    await this.env.DB.prepare("UPDATE device_bindings SET state = 'closed', updated_at = ? WHERE device_id = ?").bind(now(), deviceId).run();
+    await this.env.CACHE_KV.delete(`device:binding:${deviceId}`);
+  }
+
+  async cacheState(deviceId: string, state: unknown): Promise<void> { await writeJson(this.env.CACHE_KV, `device:state:${deviceId}`, state, 120); }
+  rateLimit(key: string, limit: number, ttl: number): Promise<boolean> { return incrementWindow(this.env.RATE_LIMIT_KV, `rl:${key}`, limit, ttl); }
 }
