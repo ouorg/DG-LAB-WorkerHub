@@ -18,6 +18,19 @@ migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "HUB_KV"
+
+[[kv_namespaces]]
+binding = "SESSION_KV"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
 id = "00000000000000000000000000000000"
 preview_id = "00000000000000000000000000000000"
 
