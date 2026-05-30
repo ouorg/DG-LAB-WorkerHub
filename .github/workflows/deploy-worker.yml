@@ -19,7 +19,7 @@ jobs:
 
       - name: Generate deployment configuration from repository secrets
         env:
-          BOOTSTRAP_TOKEN: ${{ secrets.BOOTSTRAP_TOKEN }}
+          LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
           HUB_KV_NAMESPACE_ID: ${{ secrets.HUB_KV_NAMESPACE_ID }}
           HUB_KV_PREVIEW_NAMESPACE_ID: ${{ secrets.HUB_KV_PREVIEW_NAMESPACE_ID }}
           SESSION_TTL_SECONDS: ${{ secrets.SESSION_TTL_SECONDS }}
@@ -31,7 +31,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.68.0"
+          wranglerVersion: "4.95.0"
           command: deploy --config .wrangler-ci.toml --secrets-file .wrangler-ci-secrets.json
 
       - name: Remove temporary secret files

@@ -36,6 +36,11 @@ export class Store {
     return (await Promise.all(keys.keys.map(({ name }) => this.device(name.slice(name.lastIndexOf(":") + 1))))).filter(Boolean) as Device[];
   }
 
+  async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
+    const [device] = await this.devices(ownerId);
+    return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
+  }
+
   async audit(userId: string, deviceId: string, action: string, detail: unknown): Promise<void> {
     const log: AuditLog = { id: crypto.randomUUID(), userId, deviceId, action, detail, createdAt: now() };
     await this.put(`audit:${deviceId}:${log.createdAt}:${log.id}`, log, { expirationTtl: 60 * 60 * 24 * 30 });
