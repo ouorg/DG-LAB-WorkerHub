@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to Cloudflare Workers
+    name: Validate, initialize, build, and deploy
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -25,10 +25,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
 
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run TypeScript checks
+        run: npm run typecheck
+
+      - name: Migrate, initialize, validate, build, and deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          D1_DATABASE_NAME: ${{ secrets.D1_DATABASE_NAME }}
       - name: Generate deployment configuration from repository secrets
         env:
           LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
@@ -50,6 +64,7 @@ jobs:
           SOCKET_PULSE_INTERVAL_MS: ${{ secrets.SOCKET_PULSE_INTERVAL_MS }}
           HEARTBEAT_INTERVAL: ${{ secrets.HEARTBEAT_INTERVAL }}
           WORKER_NAME: ${{ secrets.WORKER_NAME }}
+        run: ./scripts/deploy-worker.sh
         run: ./scripts/prepare-ci-config.sh
 
       - name: Run unit tests
@@ -77,6 +92,6 @@ jobs:
           wranglerVersion: "4.95.0"
           command: deploy --config .wrangler-ci.toml --secrets-file .wrangler-ci-secrets.json
 
-      - name: Remove temporary secret files
+      - name: Remove temporary deployment files
         if: always()
-        run: rm -f .wrangler-ci.toml .wrangler-ci-secrets.json
+        run: rm -rf .wrangler-ci.toml .wrangler-ci-secrets.json dist/worker-upload

@@ -8,6 +8,8 @@ set -euo pipefail
 : "${CACHE_KV_NAMESPACE_ID:?CACHE_KV_NAMESPACE_ID repository secret is required}"
 : "${HUB_KV_NAMESPACE_ID:?HUB_KV_NAMESPACE_ID repository secret is required}"
 
+WRANGLER_CONFIG_FILE="${WRANGLER_CONFIG_FILE:-.wrangler-ci.toml}"
+WRANGLER_SECRETS_FILE="${WRANGLER_SECRETS_FILE:-.wrangler-ci-secrets.json}"
 WORKER_NAME="${WORKER_NAME:-dg-lab-worker-hub}"
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-dg-lab-worker-hub}"
 HUB_KV_PREVIEW_NAMESPACE_ID="${HUB_KV_PREVIEW_NAMESPACE_ID:-$HUB_KV_NAMESPACE_ID}"
@@ -39,6 +41,8 @@ if [[ ! "$HEARTBEAT_INTERVAL" =~ ^[0-9]+$ ]] || (( HEARTBEAT_INTERVAL < 1000 ));
 
 escape_json_string() { node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$1"; }
 
+mkdir -p "$(dirname "$WRANGLER_CONFIG_FILE")" "$(dirname "$WRANGLER_SECRETS_FILE")"
+cat > "$WRANGLER_CONFIG_FILE" <<EOF_CONFIG
 cat > .wrangler-ci.toml <<EOF_CONFIG
 name = "$WORKER_NAME"
 main = "src/worker.ts"
@@ -113,6 +117,14 @@ bucket_name = "$ASSETS_BUCKET_NAME"
 binding = "ARCHIVE_BUCKET"
 bucket_name = "$ARCHIVE_BUCKET_NAME"
 
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
 [[durable_objects.bindings]]
 name = "DEVICE_DO"
 class_name = "DeviceDurableObject"
@@ -130,5 +142,7 @@ tag = "v2"
 new_sqlite_classes = ["SocketV2DurableObject"]
 EOF_CONFIG
 
+printf '{"LOGIN_PASSWORD":%s}\n' "$(escape_json_string "$LOGIN_PASSWORD")" > "$WRANGLER_SECRETS_FILE"
+chmod 600 "$WRANGLER_CONFIG_FILE" "$WRANGLER_SECRETS_FILE"
 printf '{"LOGIN_PASSWORD":%s}\n' "$(escape_json_string "$LOGIN_PASSWORD")" > .wrangler-ci-secrets.json
 chmod 600 .wrangler-ci.toml .wrangler-ci-secrets.json
