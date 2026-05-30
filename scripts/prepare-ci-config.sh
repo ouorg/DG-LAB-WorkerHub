@@ -6,6 +6,7 @@ set -euo pipefail
 : "${SESSION_KV_NAMESPACE_ID:?SESSION_KV_NAMESPACE_ID repository secret is required}"
 : "${RATE_LIMIT_KV_NAMESPACE_ID:?RATE_LIMIT_KV_NAMESPACE_ID repository secret is required}"
 : "${CACHE_KV_NAMESPACE_ID:?CACHE_KV_NAMESPACE_ID repository secret is required}"
+: "${HUB_KV_NAMESPACE_ID:?HUB_KV_NAMESPACE_ID repository secret is required}"
 
 WORKER_NAME="${WORKER_NAME:-dg-lab-worker-hub}"
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-dg-lab-worker-hub}"

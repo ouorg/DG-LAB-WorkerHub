@@ -53,6 +53,11 @@ export class Store {
     return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
   }
 
+  async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
+    const [device] = await this.devices(ownerId);
+    return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
+  }
+
   async audit(userId: string, deviceId: string, action: string, detail: unknown): Promise<void> {
     const createdAt = now();
     await this.env.DB.prepare("INSERT INTO audit_logs (id, user_id, device_id, source, action, request_json, created_at) VALUES (?, ?, ?, 'worker', ?, ?, ?)").bind(crypto.randomUUID(), userId, deviceId, action, JSON.stringify(detail), createdAt).run();
