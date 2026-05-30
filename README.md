@@ -99,3 +99,14 @@ For local development, keep using an uncommitted `.dev.vars` file:
 ```dotenv
 BOOTSTRAP_TOKEN="replace-me"
 ```
+
+## DG-LAB SOCKET v2 兼容接口
+
+Worker 现在提供与 DG-LAB APP SOCKET 控制兼容的公开 WebSocket Hub。该接口面向郊狼脉冲主机 3.0 的 APP SOCKET 功能，与需要登录的管理 API 相互独立：
+
+1. 第三方控制端连接 `wss://<你的域名>/socket`，服务端返回 `type: "bind"` 消息并分配 UUID v4 `clientId`。
+2. 控制端生成二维码：`https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#wss://<你的域名>/<clientId>`。
+3. APP 扫码后连接二维码中的地址，服务端分配 `targetId`；APP 再发送 `type: "bind"` 消息完成配对。
+4. 配对后，控制端可以发送 v2 的 `type: 1`、`2`、`3`、`4` 和 `clientMsg` 消息。服务端会转换并转发强度、清空队列和波形指令，也会将 APP 状态回报转发给控制端。
+
+为避免 APP 丢弃消息，Hub 会拒绝超过 1950 字符的 JSON 消息；单次波形数组最多包含 100 条 8 字节 HEX 数据。`clientMsg.time` 默认为 5 秒，允许范围为 1 到 60 秒。可选 Worker 变量 `SOCKET_PULSE_INTERVAL_MS` 用于调整波形重复发送间隔，默认值为 1000 毫秒，且不会低于 100 毫秒。Hub 也会发送 `type: "heartbeat"`、`message: "200"` 的心跳包；可选 Worker 变量 `HEARTBEAT_INTERVAL` 用于调整间隔，默认值为 60000 毫秒，且不会低于 1000 毫秒。
