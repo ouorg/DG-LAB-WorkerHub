@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+dist/
+coverage/
+*.log
+.dev.vars
+.wrangler-ci.toml
+.wrangler-ci-secrets.json
