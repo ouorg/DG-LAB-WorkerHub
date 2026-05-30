@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${BOOTSTRAP_TOKEN:?BOOTSTRAP_TOKEN repository secret is required}"
+: "${LOGIN_PASSWORD:?LOGIN_PASSWORD repository secret is required}"
 : "${HUB_KV_NAMESPACE_ID:?HUB_KV_NAMESPACE_ID repository secret is required}"
 
 WORKER_NAME="${WORKER_NAME:-dg-lab-worker-hub}"
@@ -38,7 +38,7 @@ compatibility_date = "2026-05-30"
 SESSION_TTL_SECONDS = "$SESSION_TTL_SECONDS"
 
 [secrets]
-required = ["BOOTSTRAP_TOKEN"]
+required = ["LOGIN_PASSWORD"]
 
 [[kv_namespaces]]
 binding = "HUB_KV"
@@ -62,5 +62,5 @@ tag = "v2"
 new_sqlite_classes = ["SocketV2DurableObject"]
 EOF_CONFIG
 
-printf '{"BOOTSTRAP_TOKEN":%s}\n' "$(escape_json_string "$BOOTSTRAP_TOKEN")" > .wrangler-ci-secrets.json
+printf '{"LOGIN_PASSWORD":%s}\n' "$(escape_json_string "$LOGIN_PASSWORD")" > .wrangler-ci-secrets.json
 chmod 600 .wrangler-ci.toml .wrangler-ci-secrets.json

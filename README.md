@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- 支持 token 登录、会话过期控制和设备归属校验。
+- 支持密码登录、会话过期控制和设备归属校验；首次登录会自动创建并选择默认设备。
 - 支持 DG-LAB 强度、波形、通道清空、状态反馈和心跳协议处理。
 - 支持绑定校验、强度上下限保护、消息长度限制、严格波形校验和按设备限流。
 - 提供 REST API 和 MCP 风格工具接口，用于控制设备。
@@ -15,7 +15,7 @@ A Cloudflare Workers control hub for DG-LAB devices. It uses Workers KV for shor
 
 ## Features
 
-- Token login with expiring sessions and per-device ownership checks.
+- Password login with expiring sessions and per-device ownership checks. The first login automatically creates and selects a default device.
 - DG-LAB strength, waveform, channel-clear, feedback, and heartbeat protocol handling.
 - Binding enforcement, strength bounds, message-length checks, strict waveform validation, and per-device command rate limits.
 - REST APIs and MCP-style tool endpoints for device control.
@@ -29,11 +29,11 @@ npx wrangler kv namespace create HUB_KV
 npx wrangler kv namespace create HUB_KV --preview
 ```
 
-将命令返回的 ID 填入 `wrangler.toml`，然后添加 Wrangler 密钥 `BOOTSTRAP_TOKEN`：
-Copy the returned IDs into `wrangler.toml`, then add `BOOTSTRAP_TOKEN` as a Wrangler secret:
+将命令返回的 ID 填入 `wrangler.toml`，然后添加 Wrangler 密钥 `LOGIN_PASSWORD`：
+Copy the returned IDs into `wrangler.toml`, then add `LOGIN_PASSWORD` as a Wrangler secret:
 
 ```sh
-npx wrangler secret put BOOTSTRAP_TOKEN
+npx wrangler secret put LOGIN_PASSWORD
 npm run dev
 ```
 
@@ -44,7 +44,7 @@ Optional: set `SESSION_TTL_SECONDS` as a Wrangler variable. Sessions default to 
 
 ## API summary
 
-- `POST /api/auth/login`
+- `POST /api/auth/login`，请求体为 `{ "password": "..." }`。登录成功后会返回会话和可直接使用的默认设备；首次登录时自动创建设备。
 - `GET|POST /api/devices`
 - `GET /api/devices/:id/status`
 - `GET /api/devices/:id/logs`
@@ -63,7 +63,7 @@ Optional: set `SESSION_TTL_SECONDS` as a Wrangler variable. Sessions default to 
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | 是 | Cloudflare API token，需要具备部署 Workers 和使用已配置 KV 命名空间的权限。 |
 | `CLOUDFLARE_ACCOUNT_ID` | 是 | Worker 和 KV 命名空间所属的 Cloudflare 账号 ID。 |
-| `BOOTSTRAP_TOKEN` | 是 | `POST /api/auth/login` 使用的运行时密钥。部署时会将其上传为加密的 Worker secret。 |
+| `LOGIN_PASSWORD` | 是 | `POST /api/auth/login` 使用的登录密码。部署时会将其上传为加密的 Worker secret。 |
 | `HUB_KV_NAMESPACE_ID` | 是 | 绑定到 `HUB_KV` 的生产环境 KV 命名空间 ID。 |
 | `HUB_KV_PREVIEW_NAMESPACE_ID` | 否 | 预览环境 KV 命名空间 ID。未配置时会回退到 `HUB_KV_NAMESPACE_ID`。 |
 | `SESSION_TTL_SECONDS` | 否 | 会话有效期，默认值为 `86400` 秒，且不能小于 `300` 秒。 |
@@ -86,7 +86,7 @@ Configure these Repository Secrets before running the workflow:
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare API token authorized to deploy Workers and use the configured KV namespace. |
 | `CLOUDFLARE_ACCOUNT_ID` | Yes | Cloudflare account containing the Worker and KV namespace. |
-| `BOOTSTRAP_TOKEN` | Yes | Runtime secret used by `POST /api/auth/login`. It is uploaded as an encrypted Worker secret. |
+| `LOGIN_PASSWORD` | Yes | Login password used by `POST /api/auth/login`. It is uploaded as an encrypted Worker secret. |
 | `HUB_KV_NAMESPACE_ID` | Yes | Production KV namespace ID bound as `HUB_KV`. |
 | `HUB_KV_PREVIEW_NAMESPACE_ID` | No | Preview KV namespace ID. It falls back to `HUB_KV_NAMESPACE_ID` when omitted. |
 | `SESSION_TTL_SECONDS` | No | Session lifetime. It defaults to `86400` seconds and must be at least `300`. |
@@ -97,7 +97,7 @@ Configure these Repository Secrets before running the workflow:
 For local development, keep using an uncommitted `.dev.vars` file:
 
 ```dotenv
-BOOTSTRAP_TOKEN="replace-me"
+LOGIN_PASSWORD="replace-me"
 ```
 
 ## DG-LAB SOCKET v2 兼容接口

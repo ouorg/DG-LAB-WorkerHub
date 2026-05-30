@@ -2,6 +2,7 @@ export interface Env {
   HUB_KV: KVNamespace;
   DEVICE_DO: DurableObjectNamespace;
   SOCKET_V2_DO: DurableObjectNamespace;
+  LOGIN_PASSWORD: string;
   BOOTSTRAP_TOKEN: string;
   SESSION_TTL_SECONDS?: string;
   SOCKET_PULSE_INTERVAL_MS?: string;

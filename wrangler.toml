@@ -3,7 +3,7 @@ main = "src/worker.ts"
 compatibility_date = "2026-05-30"
 
 [secrets]
-required = ["BOOTSTRAP_TOKEN"]
+required = ["LOGIN_PASSWORD"]
 
 [[kv_namespaces]]
 binding = "HUB_KV"
