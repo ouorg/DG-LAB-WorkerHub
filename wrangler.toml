@@ -14,6 +14,14 @@ preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
 name = "DEVICE_DO"
 class_name = "DeviceDurableObject"
 
+[[durable_objects.bindings]]
+name = "SOCKET_V2_DO"
+class_name = "SocketV2DurableObject"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DeviceDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SocketV2DurableObject"]

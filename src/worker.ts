@@ -1,10 +1,11 @@
 import { Store } from "./core/store";
 import { clearCommand, ProtocolError, strengthCommand, waveformCommand } from "./core/protocol";
 import { DeviceDurableObject } from "./durable/device-do";
+import { SocketV2DurableObject } from "./durable/socket-v2-do";
 import type { Device, Env, Session } from "./types";
 import { consoleHtml } from "./ui/console";
 
-export { DeviceDurableObject };
+export { DeviceDurableObject, SocketV2DurableObject };
 class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const reply = (value: unknown, status = 200) => Response.json(value, { status });
 const text = (value: string, contentType: string) => new Response(value, { headers: { "content-type": contentType } });
@@ -78,6 +79,13 @@ async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url), path = url.pathname, store = new Store(env);
   if (request.method === "GET" && path === "/") return text(consoleHtml, "text/html; charset=utf-8");
   if (request.method === "GET" && path === "/api/health") return reply({ ok: true, service: "dg-lab-worker-hub" });
+  const socketApp = /^\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(path);
+  if (request.method === "GET" && request.headers.get("upgrade")?.toLowerCase() === "websocket" && (path === "/socket" || socketApp)) {
+    const stub = env.SOCKET_V2_DO.get(env.SOCKET_V2_DO.idFromName("socket-v2-hub"));
+    const internal = new URL("https://socket.internal/connect");
+    if (socketApp) internal.searchParams.set("clientId", socketApp[1]);
+    return stub.fetch(new Request(internal, request));
+  }
   if (request.method === "POST" && path === "/api/auth/login") {
     const input = await body<{ token?: unknown }>(request);
     if (!env.BOOTSTRAP_TOKEN || input.token !== env.BOOTSTRAP_TOKEN) throw new HttpError(401, "invalid token");

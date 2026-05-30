@@ -49,9 +49,17 @@ preview_id = "$HUB_KV_PREVIEW_NAMESPACE_ID"
 name = "DEVICE_DO"
 class_name = "DeviceDurableObject"
 
+[[durable_objects.bindings]]
+name = "SOCKET_V2_DO"
+class_name = "SocketV2DurableObject"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DeviceDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SocketV2DurableObject"]
 EOF_CONFIG
 
 printf '{"BOOTSTRAP_TOKEN":%s}\n' "$(escape_json_string "$BOOTSTRAP_TOKEN")" > .wrangler-ci-secrets.json
