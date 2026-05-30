@@ -1,11 +1,15 @@
 export interface Env {
   DB: D1Database;
   HUB_KV: KVNamespace;
+  SESSION_KV: KVNamespace;
+  RATE_LIMIT_KV: KVNamespace;
+  CACHE_KV: KVNamespace;
   ASSETS_BUCKET: R2Bucket;
   ARCHIVE_BUCKET: R2Bucket;
   DEVICE_DO: DurableObjectNamespace;
   SOCKET_V2_DO: DurableObjectNamespace;
   LOGIN_PASSWORD: string;
+  BOOTSTRAP_TOKEN: string;
   SESSION_TTL_SECONDS?: string;
   SOCKET_PULSE_INTERVAL_MS?: string;
   HEARTBEAT_INTERVAL?: string;
