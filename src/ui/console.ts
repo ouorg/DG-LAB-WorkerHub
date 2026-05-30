@@ -1,3 +1,6 @@
+import { consoleClientScript } from "./client";
+import { consoleStyles } from "./styles";
+
 export const consoleHtml = `<!doctype html>
 <html lang="zh-CN" data-mode="dark">
 <head>
@@ -5,6 +8,7 @@ export const consoleHtml = `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#111827">
 <title>DG-LAB WorkerHub</title>
+<style>${consoleStyles}</style>
 <style>
 :root{color-scheme:dark;font-family:Inter,"Noto Sans SC",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--kumo-base:#0b1019;--kumo-elevated:#111927;--kumo-recessed:#080c13;--kumo-overlay:#182334;--kumo-line:#263449;--kumo-hairline:#34455d;--kumo-default:#f7f9fc;--kumo-subtle:#a9b6c8;--kumo-muted:#738198;--kumo-brand:#f6821f;--kumo-brand-hover:#ff9b46;--kumo-brand-soft:rgba(246,130,31,.14);--kumo-success:#36d399;--kumo-success-soft:rgba(54,211,153,.12);--kumo-danger:#fb7185;--kumo-danger-soft:rgba(251,113,133,.12);--kumo-info:#60a5fa;--kumo-info-soft:rgba(96,165,250,.12);--shadow:0 20px 48px rgba(0,0,0,.22);--radius-lg:18px;--radius-md:12px;--radius-sm:8px}
 html[data-mode="light"]{color-scheme:light;--kumo-base:#f6f7f9;--kumo-elevated:#fff;--kumo-recessed:#edf0f4;--kumo-overlay:#fff;--kumo-line:#d9dee7;--kumo-hairline:#c4cbd7;--kumo-default:#172033;--kumo-subtle:#536176;--kumo-muted:#7b8798;--kumo-brand-soft:rgba(246,130,31,.12);--kumo-success-soft:rgba(5,150,105,.1);--kumo-danger-soft:rgba(225,29,72,.1);--kumo-info-soft:rgba(37,99,235,.1);--shadow:0 18px 42px rgba(28,39,57,.1)}
@@ -49,6 +53,7 @@ html[data-mode="light"]{color-scheme:light;--kumo-base:#f6f7f9;--kumo-elevated:#
 </main>
 </div>
 </div>
+<script>${consoleClientScript}</script>
 <script>
 let bearer=localStorage.bearer||'',deviceId='',state={};const el=id=>document.getElementById(id),out=(id,x)=>el(id).textContent=JSON.stringify(x,null,2),safe=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function badge(id,text,ok){const node=el(id);node.className='badge '+(ok===true?'ok':ok===false?'bad':'');node.innerHTML='<span class="badge-dot"></span>'+safe(text)}

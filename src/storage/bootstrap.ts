@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 
+import { defaultSettings } from "../core/config";
 const defaults = [
   ["bootstrap.completed", "true"],
   ["app.name", "DG-LAB Cloud Console"],
@@ -15,6 +16,7 @@ export async function bootstrapDb(env: Env): Promise<void> {
   const completed = await env.DB.prepare("SELECT value FROM settings WHERE key = 'bootstrap.completed'").first<{ value: string }>();
   if (completed?.value === "true") return;
   const now = new Date().toISOString();
+  const statements = defaultSettings.map(([key, value]) => env.DB.prepare(
   const statements = defaults.map(([key, value]) => env.DB.prepare(
     "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO NOTHING"
   ).bind(key, value, now));
