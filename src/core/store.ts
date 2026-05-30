@@ -169,6 +169,26 @@ export class Store {
     return incrementWindow(this.env.HUB_KV, kvKeys.rateLimit(key), limit, ttl);
   }
 
+  async saveBinding(deviceId: string, clientId: string, targetId: string): Promise<void> {
+    const timestamp = now();
+    await this.env.DB.prepare(sql.upsertDeviceBinding)
+      .bind(crypto.randomUUID(), deviceId, clientId, targetId, timestamp, timestamp).run();
+    await writeJson(this.env.HUB_KV, kvKeys.deviceBinding(deviceId), { clientId, targetId, state: "active", updatedAt: timestamp }, CACHE_TTL_SECONDS.binding);
+  }
+
+  async clearBinding(deviceId: string): Promise<void> {
+    await this.env.DB.prepare(sql.closeDeviceBinding).bind(now(), deviceId).run();
+    await this.env.HUB_KV.delete(kvKeys.deviceBinding(deviceId));
+  }
+
+  async cacheState(deviceId: string, state: unknown): Promise<void> {
+    await writeJson(this.env.HUB_KV, kvKeys.deviceState(deviceId), state, CACHE_TTL_SECONDS.deviceState);
+  }
+
+  rateLimit(key: string, limit: number, ttl: number): Promise<boolean> {
+    return incrementWindow(this.env.HUB_KV, kvKeys.rateLimit(key), limit, ttl);
+  }
+
   async defaultDevice(ownerId: string): Promise<{ device: Device; created: boolean }> {
     const [device] = await this.devices(ownerId);
     return device ? { device, created: false } : { device: await this.createDevice(ownerId, "默认设备"), created: true };
