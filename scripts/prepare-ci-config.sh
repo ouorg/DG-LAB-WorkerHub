@@ -88,6 +88,14 @@ bucket_name = "$ASSETS_BUCKET_NAME"
 binding = "ARCHIVE_BUCKET"
 bucket_name = "$ARCHIVE_BUCKET_NAME"
 
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "$ASSETS_BUCKET_NAME"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "$ARCHIVE_BUCKET_NAME"
+
 [[durable_objects.bindings]]
 name = "DEVICE_DO"
 class_name = "DeviceDurableObject"

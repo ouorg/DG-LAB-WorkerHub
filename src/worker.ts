@@ -22,6 +22,21 @@ async function socketV2Upgrade(request: Request, env: Env, appClientId?: string)
   const internal = new URL("https://socket.internal/connect");
   if (appClientId) internal.searchParams.set("clientId", appClientId);
   return stub.fetch(new Request(internal, request));
+import { consoleHtml } from "./ui/console";
+
+export { DeviceDurableObject, SocketV2DurableObject };
+
+const socketAppPath = /^\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
+const deviceConnectPath = /^\/api\/devices\/([^/]+)\/connect$/;
+const deviceActionPath = /^\/api\/devices\/([^/]+)\/(status|logs|bind|unbind|strength|waveform|clear)$/;
+const mcpToolPath = /^\/api\/mcp\/tool\/([^/]+)$/;
+const isWebSocketUpgrade = (request: Request) => request.headers.get("upgrade")?.toLowerCase() === "websocket";
+
+async function socketV2Upgrade(request: Request, env: Env, appClientId?: string): Promise<Response> {
+  const stub = env.SOCKET_V2_DO.get(env.SOCKET_V2_DO.idFromName("socket-v2-hub"));
+  const internal = new URL("https://socket.internal/connect");
+  if (appClientId) internal.searchParams.set("clientId", appClientId);
+  return stub.fetch(new Request(internal, request));
 import type { Device, Env, Session } from "./types";
 import { consoleHtml } from "./ui/console";
 
@@ -70,6 +85,17 @@ function requireName(value: unknown): string {
 
 async function deviceAction(request: Request, env: Env, store: Store, deviceId: string, action: string): Promise<Response> {
   const session = await requireSession(request, store);
+  await ownedDevice(store, session, deviceId);
+  if (request.method === "GET" && action === "status") return json(await deviceStatus(store, env, deviceId));
+  if (request.method === "GET" && action === "logs") return json({ logs: await store.logs(deviceId) });
+  if (request.method !== "POST") throw new HttpError(405, "method not allowed");
+  if (action === "unbind") return json(await unbindDevice(store, env, session, deviceId));
+  const args = await jsonBody<Record<string, unknown>>(request);
+  if (action === "bind") return json(await bindDevice(store, env, session, deviceId, args));
+  if (action === "strength") return json(await sendDeviceCommand(store, env, session, deviceId, action, strengthCommand(args.channel, args.mode, args.value)));
+  if (action === "waveform") return json(await sendDeviceCommand(store, env, session, deviceId, action, waveformCommand(args.channel, args.pulses)));
+  if (action === "clear") return json(await sendDeviceCommand(store, env, session, deviceId, action, clearCommand(args.channel)));
+  throw new HttpError(404, "not found");
   await ownedDevice(store, session, deviceId);
   if (request.method === "GET" && action === "status") return json(await deviceStatus(store, env, deviceId));
   if (request.method === "GET" && action === "logs") return json({ logs: await store.logs(deviceId) });
