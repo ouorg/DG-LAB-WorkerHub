@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "./scripts/deploy-worker.sh",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/protocol.test.mjs"
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
+    "deploy:dry-run": "DEPLOY_DRY_RUN=1 ./scripts/deploy-worker.sh",
+    "actions:validate": "ruby scripts/validate-workflow.rb"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "wrangler": "^4.68.0"
-    "wrangler": "^4.50.0"
+    "wrangler": "^4.95.0"
   }
 }

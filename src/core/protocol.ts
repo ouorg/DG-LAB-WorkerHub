@@ -27,6 +27,7 @@ export function strengthCommand(channelValue: unknown, modeValue: unknown, value
 export function waveformCommand(channelValue: unknown, pulses: unknown): string {
   const channel = parseChannel(channelValue) === 1 ? "A" : "B";
   if (!Array.isArray(pulses) || pulses.length === 0) throw new ProtocolError("pulses must be a non-empty array");
+  if (pulses.length > 100) throw new ProtocolError("pulses must contain at most 100 entries");
   for (const pulse of pulses) {
     if (typeof pulse !== "string" || !/^[0-9a-fA-F]{16}$/.test(pulse)) {
       throw new ProtocolError("each pulse must be a 16-character hexadecimal string");
