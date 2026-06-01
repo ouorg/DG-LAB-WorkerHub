@@ -1,19 +1,17 @@
-import { MAX_MESSAGE_LENGTH, ProtocolError } from "../core/protocol.ts";
-import { clearedPulseChannel, controllerCommand, parseSocketEnvelope, pulseCommandChannel, punishmentDuration, socketEnvelope, type SocketChannel, type SocketEnvelope } from "../core/socket-v2.ts";
+import { MAX_MESSAGE_LENGTH, ProtocolError } from "../core/protocol";
+import { controllerCommand, parseSocketEnvelope, punishmentDuration, socketEnvelope, type SocketEnvelope } from "../core/socket-v2";
 import type { Env } from "../types";
 
 type Role = "controller" | "app";
-interface Peer { id: string; role: Role; socket: WebSocket; partnerId?: string; requestedControllerId?: string }
+interface Peer { id: string; role: Role; socket: WebSocket; partnerId?: string }
 
 const encode = (value: SocketEnvelope) => JSON.stringify(value);
 
 export class SocketV2DurableObject implements DurableObject {
   private readonly peers = new Map<string, Peer>();
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
-  private readonly pulseTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly env: Env;
 
-  constructor(_ctx: DurableObjectState, env: Env) { this.env = env; }
+  constructor(_ctx: DurableObjectState, private readonly env: Env) {}
 
   private send(peer: Peer | undefined, value: SocketEnvelope) { if (peer) peer.socket.send(encode(value)); }
   private error(peer: Peer, code: string) { this.send(peer, socketEnvelope("error", peer.role === "controller" ? peer.id : peer.partnerId ?? "", peer.role === "app" ? peer.id : peer.partnerId ?? "", code)); }
@@ -35,7 +33,6 @@ export class SocketV2DurableObject implements DurableObject {
   }
 
   private bind(app: Peer, input: SocketEnvelope) {
-    if (app.requestedControllerId !== input.clientId) return this.error(app, "401");
     const controller = this.peers.get(input.clientId);
     if (!controller || controller.role !== "controller") return this.error(app, "401");
     if (input.targetId !== app.id) return this.error(app, "402");
@@ -56,32 +53,14 @@ export class SocketV2DurableObject implements DurableObject {
     return recipient;
   }
 
-  private pulseTimerKey(appId: string, channel: SocketChannel) { return `${appId}:${channel}`; }
-  private stopPulse(appId: string, channel: SocketChannel) {
-    const key = this.pulseTimerKey(appId, channel), timer = this.pulseTimers.get(key);
-    if (!timer) return;
-    clearTimeout(timer);
-    this.timers.delete(timer);
-    this.pulseTimers.delete(key);
-  }
-  private stopPulses(appId: string) { this.stopPulse(appId, "A"); this.stopPulse(appId, "B"); }
-
-  private repeatPulse(controller: Peer, app: Peer, message: SocketEnvelope, seconds: number) {
-    const channel = pulseCommandChannel(message.message);
-    if (!channel) return this.error(controller, "500");
-    this.stopPulse(app.id, channel);
+  private repeatPulse(app: Peer, message: SocketEnvelope, seconds: number) {
     const interval = Math.max(100, Number(this.env.SOCKET_PULSE_INTERVAL_MS) || 1000);
-    const stopAt = Date.now() + seconds * 1000, key = this.pulseTimerKey(app.id, channel);
+    const stopAt = Date.now() + seconds * 1000;
     const send = () => {
-      if (this.peers.get(app.id) !== app || app.partnerId !== controller.id || controller.partnerId !== app.id || Date.now() >= stopAt) return;
+      if (!this.peers.has(app.id) || Date.now() >= stopAt) return;
       this.send(app, message);
-      const timer = setTimeout(() => {
-        this.timers.delete(timer);
-        if (this.pulseTimers.get(key) === timer) this.pulseTimers.delete(key);
-        send();
-      }, interval);
+      const timer = setTimeout(() => { this.timers.delete(timer); send(); }, interval);
       this.timers.add(timer);
-      this.pulseTimers.set(key, timer);
     };
     send();
   }
@@ -97,20 +76,15 @@ export class SocketV2DurableObject implements DurableObject {
       const command = controllerCommand(input);
       const output = socketEnvelope("msg", peer.id, recipient.id, command);
       if (encode(output).length > MAX_MESSAGE_LENGTH) return this.error(peer, "405");
-      if (input.type === "clientMsg") this.repeatPulse(peer, recipient, output, punishmentDuration(input.time));
-      else {
-        const clearedChannel = clearedPulseChannel(command);
-        if (clearedChannel) this.stopPulse(recipient.id, clearedChannel);
-        this.send(recipient, output);
-      }
+      if (input.type === "clientMsg") this.repeatPulse(recipient, output, punishmentDuration(input.time));
+      else this.send(recipient, output);
     } catch (error) { this.error(peer, error instanceof ProtocolError ? error.message : "500"); }
   }
 
   private close(peer: Peer) {
+    if (!this.peers.delete(peer.id)) return;
     const partner = this.partner(peer);
-    const app = peer.role === "app" ? peer : partner?.role === "app" ? partner : undefined;
-    if (app) this.stopPulses(app.id);
-    if (!this.peers.delete(peer.id) || !partner) return;
+    if (!partner) return;
     delete partner.partnerId;
     this.send(partner, socketEnvelope("break", partner.role === "controller" ? partner.id : peer.id, partner.role === "app" ? partner.id : peer.id, "209"));
   }
@@ -118,7 +92,7 @@ export class SocketV2DurableObject implements DurableObject {
   private attach(server: WebSocket, clientId?: string) {
     server.accept();
     const role: Role = clientId ? "app" : "controller";
-    const peer: Peer = { id: crypto.randomUUID(), role, socket: server, requestedControllerId: clientId };
+    const peer: Peer = { id: crypto.randomUUID(), role, socket: server };
     this.peers.set(peer.id, peer);
     this.heartbeat(peer);
     if (role === "controller") this.send(peer, socketEnvelope("bind", peer.id, "", "targetId"));

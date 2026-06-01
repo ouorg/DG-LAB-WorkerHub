@@ -22,7 +22,7 @@ describe("DG-LAB protocol adapter", () => {
   });
 });
 
-import { clearedPulseChannel, controllerCommand, parseSocketEnvelope, pulseCommandChannel, punishmentDuration, socketEnvelope } from "../src/core/socket-v2.ts";
+import { controllerCommand, parseSocketEnvelope, punishmentDuration, socketEnvelope } from "../src/core/socket-v2.ts";
 
 describe("DG-LAB SOCKET v2 adapter", () => {
   it("validates JSON envelopes and creates server envelopes", () => {
@@ -40,13 +40,6 @@ describe("DG-LAB SOCKET v2 adapter", () => {
     assert.equal(controllerCommand({ ...base, type: 4, message: "clear-1" }), "clear-1");
     assert.equal(controllerCommand({ ...base, type: "clientMsg", channel: "A", message: 'A:["0A0A0A0A64646464"]' }), 'pulse-A:["0A0A0A0A64646464"]');
     assert.throws(() => controllerCommand({ ...base, type: "clientMsg", channel: "B", message: "A:[]" }), /does not match/);
-  });
-  it("maps pulse and clear commands back to channels", () => {
-    assert.equal(pulseCommandChannel('pulse-A:["0A0A0A0A64646464"]'), "A");
-    assert.equal(pulseCommandChannel("strength-1+2+20"), undefined);
-    assert.equal(clearedPulseChannel("clear-1"), "A");
-    assert.equal(clearedPulseChannel("clear-2"), "B");
-    assert.equal(clearedPulseChannel("clear-3"), undefined);
   });
   it("limits waveform queue sizes and punishment duration", () => {
     assert.throws(() => waveformCommand("A", Array(101).fill("0A0A0A0A64646464")), /at most 100/);

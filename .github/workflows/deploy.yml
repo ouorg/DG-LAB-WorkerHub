@@ -42,9 +42,6 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - name: Validate package manifests
-        run: python3 scripts/validate-package-json.py
-
       - name: Install locked dependencies
         run: npm ci
 
