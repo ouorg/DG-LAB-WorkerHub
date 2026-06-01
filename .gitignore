@@ -3,6 +3,7 @@ node_modules/
 dist/
 coverage/
 *.log
-.dev.vars
+.dev.vars*
+.env*
 .wrangler-ci.toml
 .wrangler-ci-secrets.json
