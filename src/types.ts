@@ -1,8 +1,14 @@
 export interface Env {
+  DB: D1Database;
   HUB_KV: KVNamespace;
+  ASSETS_BUCKET: R2Bucket;
+  ARCHIVE_BUCKET: R2Bucket;
   DEVICE_DO: DurableObjectNamespace;
-  BOOTSTRAP_TOKEN: string;
+  SOCKET_V2_DO: DurableObjectNamespace;
+  LOGIN_PASSWORD: string;
   SESSION_TTL_SECONDS?: string;
+  SOCKET_PULSE_INTERVAL_MS?: string;
+  HEARTBEAT_INTERVAL?: string;
 }
 
 export interface User { id: string; name: string; createdAt: string }
