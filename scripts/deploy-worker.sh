@@ -8,11 +8,10 @@ WRANGLER_BIN="${WRANGLER_BIN:-$ROOT_DIR/node_modules/.bin/wrangler}"
 WRANGLER_CONFIG_FILE="${WRANGLER_CONFIG_FILE:-$ROOT_DIR/.wrangler-ci.toml}"
 WRANGLER_SECRETS_FILE="${WRANGLER_SECRETS_FILE:-$ROOT_DIR/.wrangler-ci-secrets.json}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/dist/worker-upload}"
-D1_DATABASE_NAME="${D1_DATABASE_NAME:-dg-lab-worker-hub}"
 DEPLOY_DRY_RUN="${DEPLOY_DRY_RUN:-0}"
 KEEP_DEPLOY_FILES="${KEEP_DEPLOY_FILES:-0}"
 
-export WRANGLER_CONFIG_FILE WRANGLER_SECRETS_FILE D1_DATABASE_NAME
+export WRANGLER_CONFIG_FILE WRANGLER_SECRETS_FILE
 
 cleanup() {
   if [[ "$KEEP_DEPLOY_FILES" != 1 ]]; then rm -f "$WRANGLER_CONFIG_FILE" "$WRANGLER_SECRETS_FILE"; fi
@@ -38,10 +37,10 @@ if [[ "$DEPLOY_DRY_RUN" != 1 ]]; then
   : "${CLOUDFLARE_ACCOUNT_ID:?CLOUDFLARE_ACCOUNT_ID is required for remote deployment}"
 
   phase "Apply remote D1 migrations and initialize bootstrap data"
-  wrangler d1 migrations apply "$D1_DATABASE_NAME" --remote --config "$WRANGLER_CONFIG_FILE"
+  wrangler d1 migrations apply DB --remote --config "$WRANGLER_CONFIG_FILE"
 
   phase "Verify remote D1 bootstrap data"
-  wrangler d1 execute "$D1_DATABASE_NAME" --remote --yes --json --config "$WRANGLER_CONFIG_FILE" \
+  wrangler d1 execute DB --remote --yes --json --config "$WRANGLER_CONFIG_FILE" \
     --command "SELECT CASE WHEN EXISTS (SELECT 1 FROM settings WHERE key = 'bootstrap.completed' AND value = 'true') THEN 1 ELSE 0 END AS bootstrap_completed, (SELECT COUNT(*) FROM settings) AS settings_count, (SELECT COUNT(*) FROM users WHERE id = 'bootstrap' AND role = 'admin') AS admin_count;" \
     | node ./scripts/verify-bootstrap.mjs
 else

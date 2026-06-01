@@ -1,7 +1,5 @@
 import { assertMessageLength, parseChannel, ProtocolError, strengthCommand, waveformCommand } from "./protocol.ts";
 
-export type SocketChannel = "A" | "B";
-
 export interface SocketEnvelope {
   type: string | number;
   clientId: string;
@@ -42,15 +40,6 @@ export function controllerCommand(input: SocketEnvelope): string {
     return waveformCommand(channel, pulses);
   }
   throw new ProtocolError("unsupported controller message type");
-}
-
-export function pulseCommandChannel(command: string): SocketChannel | undefined {
-  return /^pulse-([AB]):/.exec(command)?.[1] as SocketChannel | undefined;
-}
-
-export function clearedPulseChannel(command: string): SocketChannel | undefined {
-  const channel = /^clear-([12])$/.exec(command)?.[1];
-  return channel === "1" ? "A" : channel === "2" ? "B" : undefined;
 }
 
 export function punishmentDuration(value: unknown, fallback = 5): number {
